@@ -1,18 +1,9 @@
-#`{{{
-my $regex = rx{"/account/" $<acc_id> = [\d+]};
-my $path = "/account/123";
-
-if $path ~~ m{<a={$regex.clone}>} -> \match {
-   say match<a>.Hash ~~ :(Int(Match) :$acc_id!)
-}
-}}}
-
-
 unit class Matcher;
 
 has Str			$.source	is required;
 has Regex		$!regex;
 has Signature	$!signature;
+has Bool		$.debug		= False;
 
 my regex type {
 	(\w+) <?{::($0) ~~ Mu:U}>
@@ -22,8 +13,12 @@ my regex var-name {
 	\w+
 };
 
+my regex optional {
+	'?'
+};
+
 my rule place-holder {
-	'{' <type>? <var-name> '}'
+	'{' <type>? <var-name> <optional>? '}'
 };
 
 method BUILDALL(|) {
@@ -40,12 +35,17 @@ method !build-regex {
 		/"
 			\$<{
 				~$<place-holder><var-name>
-			}>=\\w+
-			<?\{{ ~($<place-holder><type> // "Str") }( \$\<{
+			}>=\\w{
+					$<place-holder><optional> ?? "*" !! "+"
+			}
+			<?\{
+				!\$\<{~$<place-holder><var-name>}>.chars or
+				{ ~($<place-holder><type> // "Str") }( \$\<{
 					~$<place-holder><var-name>
-			}>) }>
+			}> ) }>
 		"/;
-		$regex = '"' ~ $regex ~ '"';
+		$regex = '^ "' ~ $regex ~ '" $';
+		say "REGEX: ", $regex.words.join(" ") if $!debug;
 		$!regex = rx/<response=$regex>/;
 	}
 	no MONKEY-SEE-NO-EVAL;
